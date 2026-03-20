@@ -52,7 +52,7 @@ graph TD;
 
 ```bash
 # 1. 克隆代码下来（或解压你的工程目录）
-git clone <your-repo-address> ~/.Aegis-Code-Auditor
+git clone https://github.com/gaorenyusi/Aegis-Code-Auditor.git
 cd ~/.Aegis-Code-Auditor
 
 # 2. 安装 Python 依赖
@@ -67,9 +67,9 @@ export OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
 
 ---
 
-## ⚙️ 系统配置 (`config.py`)
+## ⚙️ 系统配置 (`.env`)
 
-您可以在 `src/config.py` 中自定义下列选项：
+您可以在 `.env` 中自定义下列选项：
 
 * `CODEQL_RULES_DIR`: CodeQL 原生标准规则目录
 * `CODEQL_EXT_RULES_DIR`: 实验性或自定义 CWE 规则目录
