@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeAudit-LangGraph | 自动化代码安全审查引擎</title>
+    <!-- 使用现代化的 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0b10;
+            --bg-surface: #14151f;
+            --bg-card: #1c1d29;
+            --primary: #00ffcc;
+            --primary-glow: rgba(0, 255, 204, 0.4);
+            --danger: #ff4b4b;
+            --danger-glow: rgba(255, 75, 75, 0.3);
+            --warning: #ffb84d;
+            --success: #00e676;
+            --text-main: #f0f0f5;
+            --text-muted: #8e95b0;
+            --border-color: #2a2c3f;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(0, 255, 204, 0.05), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(100, 100, 255, 0.05), transparent 25%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #fff, var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        /* ------------------ Form Section ------------------ */
+        .glass-panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            margin-bottom: 2rem;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .input-group label {
+            font-weight: 500;
+            color: #d1d5e0;
+            font-size: 0.95rem;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 1rem;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 1rem 1.2rem;
+            border-radius: 12px;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+        
+        /* Checkbox Grid for CWE Selection */
+        .cwe-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .cwe-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            background: var(--bg-card);
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            user-select: none;
+        }
+        
+        .cwe-checkbox-label:hover {
+            border-color: rgba(0, 255, 204, 0.5);
+            background: rgba(0, 255, 204, 0.05);
+        }
+
+        .cwe-checkbox-label input[type="checkbox"] {
+            accent-color: var(--primary);
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        button.btn-scan {
+            background: linear-gradient(135deg, #00b399, var(--primary));
+            color: #000;
+            border: none;
+            padding: 0 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px var(--primary-glow);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        button.btn-scan:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--primary-glow);
+            background: linear-gradient(135deg, #00d6b8, #26ffda);
+        }
+
+        button.btn-scan:disabled {
+            background: #2a2c3f;
+            color: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* ------------------ Loader ------------------ */
+        .loader-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 3rem 0;
+            gap: 1.5rem;
+        }
+        
+        .loader-container.active {
+            display: flex;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader-text {
+            color: var(--primary);
+            font-weight: 500;
+            letter-spacing: 1px;
+            animation: pulseText 1.5s infinite;
+        }
+
+        /* ------------------ Results Section ------------------ */
+        .results-container {
+            display: none;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .results-container.active {
+            display: flex;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .vul-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .vul-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary);
+        }
+
+        .vul-card.true-positive::before {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger-glow);
+        }
+        
+        .vul-card.false-positive::before {
+            background: var(--success);
+        }
+        
+        .vul-card.need-context::before {
+            background: var(--warning);
+        }
+
+        .vul-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .vul-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.true-positive { background: rgba(255, 75, 75, 0.15); color: var(--danger); border: 1px solid rgba(255, 75, 75, 0.3); }
+        .badge.false-positive { background: rgba(0, 230, 118, 0.15); color: var(--success); border: 1px solid rgba(0, 230, 118, 0.3); }
+        .badge.need-context { background: rgba(255, 184, 77, 0.15); color: var(--warning); border: 1px solid rgba(255, 184, 77, 0.3); }
+
+        .vul-body {
+            display: grid;
+            gap: 1.2rem;
+        }
+
+        .data-row {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .data-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .data-value {
+            font-size: 1rem;
+            color: #fff;
+            line-height: 1.5;
+        }
+
+        .chain-box {
+            background: rgba(0,0,0,0.3);
+            padding: 0.8rem 1rem;
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #b0b4c3;
+            word-break: break-all;
+        }
+
+        .code-snippet {
+            background: #0d0f17;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #a8b2d1;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            position: relative;
+        }
+
+        .code-snippet::after {
+            content: 'CODE';
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 0.2rem 0.6rem;
+            background: rgba(255,255,255,0.05);
+            color: #555c70;
+            font-size: 0.7rem;
+            border-bottom-left-radius: 8px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .thinking-content {
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 2px dashed rgba(142, 149, 176, 0.3);
+            padding: 1rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            color: #b0b4c3;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            margin-bottom: 0.5rem;
+            display: none; /* hidden by default, can be toggled */
+        }
+        
+        .thinking-content.open {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+        
+        .thinking-toggle {
+            color: var(--primary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .reason-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 3px solid var(--primary);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+            color: #d1d5e0;
+        }
+
+        /* ------------------ Animations ------------------ */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes pulseText { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>CodeAudit-LangGraph</h1>
+            <p>Intelligence-Driven False Positive Eradicator</p>
+        </header>
+
+        <section class="glass-panel">
+            <div class="input-group">
+                <label for="db_path">⚡ CODEQL DATABASE DIRECTORY</label>
+                <div class="input-wrapper">
+                    <input type="text" id="db_path" placeholder="请填入 CodeQL Database 绝对路径" autocomplete="off" />
+                    <button class="btn-scan" id="scanBtn" onclick="triggerScan()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        START AUDIT
+                    </button>
+                </div>
+                
+                <div>
+                    <label style="margin-top: 1rem; display: block; font-size: 0.85rem;">🛡️ TARGET CWE SELECTION (全不选则执行全部扫描规则)</label>
+                    <div class="cwe-grid" id="cweContainer">
+                        <label class="cwe-checkbox-label"><input type="checkbox" value="CWE-078"> CWE-078 (OS Cmd)</label>
+                        <label class="cwe-checkbox-label" style="background: rgba(100, 100, 255, 0.05); border-color: #3d3b73;"><input type="checkbox" value="CWE-078-ext"> CWE-078-ext (扩展)</label>
+                        <label class="cwe-checkbox-label"><input type="checkbox" value="CWE-079"> CWE-079 (XSS)</label>
+                        <label class="cwe-checkbox-label" style="background: rgba(100, 100, 255, 0.05); border-color: #3d3b73;"><input type="checkbox" value="CWE-079-ext"> CWE-079-ext (扩展)</label>
+                        <label class="cwe-checkbox-label"><input type="checkbox" value="CWE-089"> CWE-089 (SQLi)</label>
+                        <label class="cwe-checkbox-label" style="background: rgba(100, 100, 255, 0.05); border-color: #3d3b73;"><input type="checkbox" value="CWE-089-ext"> CWE-089-ext (扩展)</label>
+                        <label class="cwe-checkbox-label"><input type="checkbox" value="CWE-094"> CWE-094 (Code Inj)</label>
+                        <label class="cwe-checkbox-label" style="background: rgba(100, 100, 255, 0.05); border-color: #3d3b73;"><input type="checkbox" value="CWE-094-ext"> CWE-094-ext (扩展)</label>
+                        <label class="cwe-checkbox-label"><input type="checkbox" value="CWE-502"> CWE-502 (Deser)</label>
+                        <label class="cwe-checkbox-label" style="background: rgba(100, 100, 255, 0.05); border-color: #3d3b73;"><input type="checkbox" value="CWE-502-ext"> CWE-502-ext (扩展)</label>
+                        <label class="cwe-checkbox-label"><input type="checkbox" value="CWE-611"> CWE-611 (XXE)</label>
+                        <label class="cwe-checkbox-label" style="background: rgba(100, 100, 255, 0.05); border-color: #3d3b73;"><input type="checkbox" value="CWE-611-ext"> CWE-611-ext (扩展)</label>
+                        <label class="cwe-checkbox-label"><input type="checkbox" value="CWE-918"> CWE-918 (SSRF)</label>
+                        <label class="cwe-checkbox-label" style="background: rgba(100, 100, 255, 0.05); border-color: #3d3b73;"><input type="checkbox" value="CWE-918-ext"> CWE-918-ext (扩展)</label>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                    <label style="display: block; font-size: 0.85rem; margin-bottom: 0.8rem; font-weight: 600; color: #fff;">⚙️ 进阶审计优化开关</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+                        <label class="cwe-checkbox-label" style="justify-content: flex-start; padding: 0.8rem 1rem;">
+                            <input type="checkbox" id="enable_llm_if_excessive" checked>
+                            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem;">
+                                <span>LLM 保护阈值：超过 20 个结果继续消耗 API 分析</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">关闭后，如果单个规则刷出的告警条数＞20 条，将视作风暴，强制中止该规则的 LLM 判断</span>
+                            </div>
+                        </label>
+                        <label class="cwe-checkbox-label" style="justify-content: flex-start; padding: 0.8rem 1rem; border-color: rgba(255, 75, 75, 0.3);">
+                            <input type="checkbox" id="aggressive_dedup">
+                            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem;">
+                                <span>激进组装去重：基于落点全局唯一折叠 (慎用)</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">开启后，即使代码跑出多分支，同一汇聚点(Sink)也会被直接野蛮裁去，只保留孤项用于 LLM 审阅 (易导致漏报)</span>
+                            </div>
+                        </label>
+                        <label class="cwe-checkbox-label" style="justify-content: flex-start; padding: 0.8rem 1rem;">
+                            <input type="checkbox" id="limit_top_10">
+                            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem;">
+                                <span>抽样模式：保留同类型漏洞前 10 个断电</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">针对每一条审计规则开启极限保留，当去重后的待审数量 > 10，直接抛弃尾部多余流束强制仅审计 10 条上限</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Loading Spinner -->
+        <div class="loader-container" id="loader">
+            <div class="spinner"></div>
+            <div class="loader-text">AI 脑力激荡中... 正在进行深层逻辑推理，请耐心等待</div>
+        </div>
+
+        <!-- Target Container for Results -->
+        <div class="results-container" id="resultsContainer">
+            <!-- Content Injected via JS -->
+        </div>
+
+    </div>
+
+    <script>
+        function toggleThinking(id) {
+            const el = document.getElementById('think-' + id);
+            if(el.classList.contains('open')) {
+                el.classList.remove('open');
+            } else {
+                el.classList.add('open');
+            }
+        }
+
+        async function triggerScan() {
+            const dbPath = document.getElementById('db_path').value.trim();
+            if (!dbPath) {
+                alert('请填写目标数据库的绝对路径！');
+                return;
+            }
+            
+            // 获取用户勾选的 CWE 列表
+            const cweCheckboxes = document.querySelectorAll('#cweContainer input[type="checkbox"]:checked');
+            const cweList = Array.from(cweCheckboxes).map(cb => cb.value);
+
+            // 获取高级优化配置的交互结果
+            const enableLlmIfExcessive = document.getElementById('enable_llm_if_excessive').checked;
+            const aggressiveDedup = document.getElementById('aggressive_dedup').checked;
+            const limitTop10 = document.getElementById('limit_top_10').checked;
+
+            // Update UI State
+            const scanBtn = document.getElementById('scanBtn');
+            const loader = document.getElementById('loader');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            scanBtn.disabled = true;
+            scanBtn.innerHTML = 'ANALYZING...';
+            resultsContainer.classList.remove('active');
+            resultsContainer.innerHTML = '';
+            loader.classList.add('active');
+
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        db_path: dbPath,
+                        cwe_list: cweList.length > 0 ? cweList : null,
+                        enable_llm_if_excessive: enableLlmIfExcessive,
+                        aggressive_dedup: aggressiveDedup,
+                        limit_top_10: limitTop10
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'error') {
+                    alert('分析失败：' + data.message);
+                } else if (data.status === 'success') {
+                    renderResults(data.results);
+                }
+
+            } catch (err) {
+                alert('网络请求出错: ' + err.message);
+            } finally {
+                // Reset UI State
+                loader.classList.remove('active');
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> START AUDIT';
+            }
+        }
+
+        function extractTargetSnippet(flowSteps) {
+            if (!flowSteps || flowSteps.length === 0) return "/* 未能提取到代码 */";
+            // Get the steps that has focus = true, default to the last one
+            for(let i = flowSteps.length - 1; i >= 0; i--) {
+                if(flowSteps[i].focus === true) {
+                    return flowSteps[i].code;
+                }
+            }
+            return flowSteps[flowSteps.length - 1].code;
+        }
+
+        function renderResults(results) {
+            const container = document.getElementById('resultsContainer');
+            
+            if (!results || results.length === 0) {
+                container.innerHTML = '<div class="glass-panel" style="text-align:center; padding: 3rem; color:var(--text-muted)"><h3>执行完毕：选中规则下未发现任何漏洞或误报。</h3></div>';
+                container.classList.add('active');
+                return;
+            }
+
+            results.forEach((item, index) => {
+                const isTp = item.verdict && item.verdict.includes('TRUE POSITIVE');
+                const isFp = item.verdict && item.verdict.includes('FALSE POSITIVE');
+                const isNe = item.verdict && item.verdict.includes('NEED_MORE_CONTEXT');
+                
+                let themeClass = isTp ? 'true-positive' : (isFp ? 'false-positive' : 'need-context');
+                
+                const ruleId = item.rule_id || 'UNKNOWN';
+                const message = item.message || '';
+                const baseFile = item.file ? item.file.split(/[\\/]/).pop() : 'Unknown';
+                const line = item.line || '?';
+                
+                const callChainArr = (item.flow || []).map(f => `${f.file ? f.file.split(/[\\/]/).pop() : '?'}:${f.line}`);
+                const callChainStr = callChainArr.length > 0 ? callChainArr.join(' → ') : '无明显调用链';
+                
+                const snippet = extractTargetSnippet(item.flow);
+                const reason = item.reason || '未给出原因';
+                const thinkingLogs = item.thinking || '没有可用的思考链记录';
+
+                // Escape HTML for snippet to avoid formatting issues
+                const safeSnippet = snippet.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const safeThinking = thinkingLogs.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                const cardHTML = `
+                    <div class="vul-card ${themeClass}">
+                        <div class="vul-header">
+                            <div class="vul-title">
+                                <span>[${ruleId}]</span>
+                                <span style="font-size: 1rem;font-weight:400;color:var(--text-muted)"> ${message} </span>
+                            </div>
+                            <div class="badge ${themeClass}">${item.verdict}</div>
+                        </div>
+                        
+                        <div class="vul-body">
+                            <div class="data-row">
+                                <span class="data-label">漏洞落点位置 (SINK)</span>
+                                <span class="data-value">${baseFile} : <span style="color:var(--primary)">${line}</span></span>
+                            </div>
+                            
+                            <div class="data-row">
+                                <span class="data-label">流向调用链追踪</span>
+                                <div class="chain-box">${callChainStr}</div>
+                            </div>
+
+                            <div class="data-row">
+                                <span class="data-label">焦点代码执行段</span>
+                                <div class="code-snippet">${safeSnippet}</div>
+                            </div>
+
+                            <div class="data-row">
+                                <span class="data-label">
+                                    <span>AI 审计推理过程 (历经提取轮次: ${item.iterations || 1})</span>
+                                    <span class="thinking-toggle" onclick="toggleThinking(${index})">查看/折叠详细大模型对话日志</span>
+                                </span>
+                                <div class="thinking-content" id="think-${index}">${safeThinking}</div>
+                                <div class="reason-box">"结论总结: ${reason}"</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.innerHTML += cardHTML;
+            });
+
+            container.classList.add('active');
+        }
+    </script>
+</body>
+</html>

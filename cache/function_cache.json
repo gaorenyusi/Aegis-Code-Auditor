@@ -1,0 +1,4 @@
+{
+    "sanitizeSql": "已验证安全，有效防御SQL注入",
+    "escapeHtml": "仅能防御XSS，对SQL注入无效"
+}
